@@ -6,8 +6,6 @@ RegimeLab is educational and research software only. It is not financial advice,
 
 ## Current MVP Status
 
-Implemented:
-
 - Data ingestion and local raw CSV caching.
 - Leakage-aware feature engineering.
 - Rule-based regime labeling.
@@ -17,20 +15,15 @@ Implemented:
 - Cached-artifact FastAPI endpoints.
 - Docker packaging for serving the API.
 - Synthetic end-to-end smoke coverage for the local pipeline.
-
-Planned later:
-
-- Hidden Markov Model regime detection.
-- Forward return and risk analysis.
-- Experiment tracking and model registry.
-- Walk-forward validation.
-- SHAP or other model interpretability tools.
-- Streamlit dashboard.
+- Optional Hidden Markov Model exploratory regime reports.
+- Retrospective forward return and risk analysis reports.
 
 ## Architecture
 
 ```text
 Data ingestion -> feature engineering -> rule labeling -> training -> evaluation -> API serving
+                                         \-> optional HMM analysis
+                                         \-> forward return analysis
 ```
 
 - Data ingestion downloads daily OHLCV data and caches normalized CSVs under `data/raw/`.
@@ -39,6 +32,30 @@ Data ingestion -> feature engineering -> rule labeling -> training -> evaluation
 - Training fits baseline scikit-learn classifiers and saves joblib artifacts under `models/`.
 - Evaluation writes metrics JSON and updates file-based experiment metadata under `reports/`.
 - FastAPI serves health, regime prediction, history, metrics, and experiment endpoints from cached local files.
+- Optional HMM analysis fits latent states from return and volatility sequences and writes separate artifacts/reports.
+- Forward return analysis measures retrospective outcomes after rule-based or predicted regimes.
+
+## Results from Sample Run
+
+Current cached real-data run:
+
+- Tickers: `SPY`, `QQQ`, `AAPL`, `NVDA`
+- Labeled feature date range: `2015-10-16` to `2026-05-14`
+- Supervised model: `random_forest`
+- Test accuracy: `0.9948`
+- Test macro F1: `0.9918`
+- Combined label distribution: `stable_growth` 32.6%, `volatile_recovery` 8.5%, `sideways_defensive` 41.8%, `stress_selloff` 17.1%
+- Latest regimes on `2026-05-14`: `SPY`, `QQQ`, and `AAPL` were `stable_growth`; `NVDA` was `sideways_defensive`
+
+These metrics measure agreement with heuristic labels, not real-world trading performance. Detailed sample results, interpretation notes, and resume bullets are in [docs/RESULTS.md](docs/RESULTS.md).
+
+## How to Interpret Results
+
+- Regime labels are transparent heuristics, not objective market truth.
+- High model accuracy means the model reproduces heuristic labels; it does not imply profitable prediction.
+- Forward returns are retrospective analysis outputs, not trading signals.
+- HMM state names are interpreted after training from state statistics.
+- If an artifact compatibility warning appears, retrain the model in the current environment.
 
 ## Tech Stack
 
@@ -52,6 +69,7 @@ Data ingestion -> feature engineering -> rule labeling -> training -> evaluation
 - joblib
 - Docker
 - yfinance
+- hmmlearn, optional for HMM analysis
 
 ## Setup
 
@@ -79,6 +97,12 @@ Install development dependencies:
 
 ```bash
 python -m pip install -e ".[dev]"
+```
+
+Install optional HMM dependencies:
+
+```bash
+python -m pip install -e ".[hmm]"
 ```
 
 ## Local Usage Flow
@@ -119,7 +143,21 @@ python -m src.evaluate --experiment-id latest
 python -m src.diagnostics --tickers SPY QQQ AAPL NVDA
 ```
 
-7. Run the API:
+7. Optionally run HMM latent regime analysis:
+
+```bash
+python -m src.hmm --tickers SPY QQQ AAPL NVDA --n-states 4
+```
+
+8. Optionally run forward return analysis:
+
+```bash
+python -m src.forward_returns --tickers SPY QQQ AAPL NVDA --horizons 5 20 60
+```
+
+Use `--save-csv` to also write a flattened summary table under `reports/`.
+
+9. Run the API:
 
 ```bash
 uvicorn app.main:app --reload
@@ -127,22 +165,25 @@ uvicorn app.main:app --reload
 
 ## Diagnostics
 
-Summarize real-data QA counts for cached labels, predictions, latest regimes, and metrics:
+Summarize cached labels, predictions, latest regimes, metrics, and artifact compatibility:
 
 ```bash
 python -m src.diagnostics --tickers SPY QQQ AAPL NVDA
 ```
 
-The diagnostics report includes per-ticker and combined row counts, `rule_label` distributions, `predicted_regime` distributions when a model artifact exists, latest regime per ticker, train/test date ranges, accuracy, macro F1, and warnings when one label dominates more than 70% of rows.
-
-High accuracy in this MVP means the model agrees with the rule-based heuristic labels. It does not mean the model predicts market returns, creates profitable trades, or measures real-world trading performance.
-
-If an artifact compatibility warning appears, retrain the model in the current environment:
+Optional HMM analysis fits an unsupervised Gaussian Hidden Markov Model using `return_1d` and `volatility_20d`:
 
 ```bash
-python -m src.train --model-type random_forest --tickers SPY QQQ AAPL NVDA
-python -m src.evaluate --experiment-id latest
+python -m src.hmm --tickers SPY QQQ AAPL NVDA --n-states 4
 ```
+
+Optional forward return analysis measures what historically happened after each observed regime:
+
+```bash
+python -m src.forward_returns --tickers SPY QQQ AAPL NVDA --horizons 5 20 60
+```
+
+Both paths write local reports under `reports/` and stay separate from the supervised API.
 
 ## API Examples
 
@@ -209,6 +250,8 @@ regime-lab/
     train.py
     evaluate.py
     predict.py
+    hmm.py
+    forward_returns.py
     experiments.py
   data/
     raw/
@@ -236,7 +279,7 @@ These labels are transparent heuristics used as supervised training targets. The
 ## Leakage Prevention
 
 - Rolling features use only current and prior observations.
-- Forward returns are not generated as model inputs in the MVP.
+- Forward returns are generated only inside `src.forward_returns` reports, never as model inputs.
 - Features are computed separately per ticker.
 - Training uses a chronological split: earliest 80% of unique dates for training and latest 20% for testing.
 - The train/test split is shared across tickers for combined-universe training.
@@ -246,14 +289,16 @@ These labels are transparent heuristics used as supervised training targets. The
 
 - Labels are rule-based heuristics, not ground truth.
 - Results measure agreement with heuristic labels, not investment performance.
+- HMM states are latent clusters interpreted after fitting; their names are analytical summaries, not known market truth.
+- Forward return reports are retrospective summaries and can be affected by regime label quality, market period selection, and survivorship-style assumptions.
 - Data comes from `yfinance`, which is useful for an educational project but not a production-grade market data source.
 - The API reads local cached files and artifacts; it does not run live downloads or training inside request handlers.
 - File-based experiment metadata is intentionally simple for the MVP.
 
 ## Future Roadmap
 
-- Hidden Markov Model regime detection.
-- Forward return and risk analysis.
+- HMM stability analysis and richer transition diagnostics.
+- Richer forward risk analysis with drawdown paths and visualizations.
 - Experiment tracking and model registry.
 - Walk-forward validation.
 - SHAP or other model interpretability.

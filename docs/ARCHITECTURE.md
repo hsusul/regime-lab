@@ -1,9 +1,11 @@
 # RegimeLab Architecture
 
-RegimeLab is organized as a CLI-first ML pipeline with a cached-artifact FastAPI layer.
+RegimeLab is organized as a CLI-first ML pipeline with a cached-artifact FastAPI layer and separate offline analysis modules.
 
 ```text
 data/raw -> data/processed -> labeled features -> models/reports -> FastAPI
+                                         \-> HMM reports
+                                         \-> forward return reports
 ```
 
 ## Pipeline Stages
@@ -37,6 +39,16 @@ data/raw -> data/processed -> labeled features -> models/reports -> FastAPI
    - Serves cached predictions, history, metrics, and experiments through FastAPI.
    - Does not download live market data or train models inside request handlers.
 
+7. `src.hmm`
+   - Optional unsupervised latent-state analysis using `return_1d` and `volatility_20d`.
+   - Saves separate HMM artifacts under `models/hmm/`.
+   - Writes exploratory state summaries under `reports/`.
+
+8. `src.forward_returns`
+   - Computes retrospective forward returns for offline analysis only.
+   - Writes JSON reports and optional CSV summaries under `reports/`.
+   - Does not modify `FEATURE_COLUMNS`, training inputs, or supervised artifacts.
+
 ## Artifact Contract
 
 Training artifacts are joblib dictionaries containing:
@@ -52,3 +64,6 @@ Training artifacts are joblib dictionaries containing:
 - `labeling_version`
 - `created_at`
 - `experiment_id`
+- environment metadata such as Python, scikit-learn, pandas, and NumPy versions
+
+Generated local data and reports are ignored by git. Source code, docs, tests, and `.gitkeep` placeholders are tracked.

@@ -16,7 +16,8 @@ notebooks/.ipynb_checkpoints
 data/raw/*
 data/processed/*
 models/*
-reports/*
+reports/*.json
+reports/*.csv
 .DS_Store
 .idea
 .vscode
