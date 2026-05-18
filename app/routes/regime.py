@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.schemas import HistoryResponse, RegimeResponse
 from src.predict import (
     CachedDataNotFoundError,
+    DEFAULT_HISTORY_LIMIT,
     InvalidTickerFormatError,
     NoModelAvailableError,
     PredictionInputError,
@@ -37,7 +38,7 @@ def get_history(
     ticker: str,
     start_date: str | None = None,
     end_date: str | None = None,
-    limit: int | None = Query(default=None, ge=1, le=5_000),
+    limit: int | None = Query(default=DEFAULT_HISTORY_LIMIT, ge=1, le=5_000),
 ) -> HistoryResponse:
     """Return historical rule labels and optional predictions for a ticker."""
     try:

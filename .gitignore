@@ -25,6 +25,7 @@ data/processed/*
 models/*
 reports/*.json
 reports/*.csv
+reports/*.db
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !models/.gitkeep

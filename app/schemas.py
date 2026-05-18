@@ -49,6 +49,7 @@ class HistoryResponse(BaseModel):
     ticker: str
     rows: list[HistoryRow]
     count: int
+    total_available: int | None = None
     warnings: list[str] = Field(default_factory=list)
 
 

@@ -10,6 +10,7 @@ import pandas as pd
 
 import src.predict as predict_service
 from app.main import app
+from src.predict import DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT
 from src.train import train_model
 from tests.test_train import make_labeled_data
 
@@ -303,6 +304,7 @@ def test_history_returns_rule_labels_without_model_warning(monkeypatch, tmp_path
     assert response.status_code == 200
     body = response.json()
     assert body["count"] == 2
+    assert body["total_available"] == 4
     assert body["rows"][0]["rule_label"] is not None
     assert body["rows"][0]["predicted_regime"] is None
     assert body["warnings"]
@@ -321,6 +323,40 @@ def test_history_returns_predicted_regime_when_model_exists(monkeypatch, tmp_pat
     assert all(row["predicted_regime"] is not None for row in rows)
 
 
+def test_history_default_limit_returns_latest_100_rows_in_chronological_order(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    processed_dir, _, _ = configure_api_dirs(monkeypatch, tmp_path)
+    write_labeled_files(make_labeled_data(periods=150), processed_dir)
+    client = TestClient(app)
+
+    response = client.get("/history/SPY")
+
+    assert response.status_code == 200
+    body = response.json()
+    dates = [row["date"] for row in body["rows"]]
+    assert body["count"] == DEFAULT_HISTORY_LIMIT
+    assert body["total_available"] == 150
+    assert dates[0] == "2024-02-20"
+    assert dates[-1] == "2024-05-29"
+    assert dates == sorted(dates)
+
+
+def test_history_overly_large_limit_is_capped(monkeypatch, tmp_path) -> None:
+    processed_dir, _, _ = configure_api_dirs(monkeypatch, tmp_path)
+    write_labeled_files(make_labeled_data(periods=1_200), processed_dir)
+    client = TestClient(app)
+
+    response = client.get("/history/SPY?limit=5000")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == MAX_HISTORY_LIMIT
+    assert body["total_available"] == 1_200
+    assert any("capped" in warning for warning in body["warnings"])
+
+
 def test_history_supports_limit_start_date_and_end_date_filters(
     monkeypatch,
     tmp_path,
@@ -334,7 +370,10 @@ def test_history_supports_limit_start_date_and_end_date_filters(
     )
 
     assert response.status_code == 200
-    dates = [row["date"] for row in response.json()["rows"]]
+    body = response.json()
+    dates = [row["date"] for row in body["rows"]]
+    assert body["count"] == 3
+    assert body["total_available"] == 6
     assert dates == ["2024-01-06", "2024-01-07", "2024-01-08"]
 
 

@@ -317,6 +317,17 @@ def evaluate_artifact(
             metrics["macro_f1"],
             metrics_path,
         )
+        from src.experiment_registry import update_experiment_metrics as update_registry
+
+        update_registry(
+            artifact["experiment_id"],
+            {
+                "accuracy": metrics["accuracy"],
+                "macro_f1": metrics["macro_f1"],
+            },
+            metrics_path=metrics_path,
+            db_path=reports_dir / "regimelab.db",
+        )
 
     return EvaluationResult(
         experiment_id=artifact["experiment_id"],
@@ -335,6 +346,13 @@ def resolve_experiment_record(
     reports_dir: Path = REPORTS_DIR,
 ) -> dict[str, Any]:
     """Resolve an experiment record by ID or latest completed experiment."""
+    if experiment_id == "latest":
+        from src.experiment_registry import active_experiment
+
+        active = active_experiment(db_path=reports_dir / "regimelab.db")
+        if active is not None:
+            return active
+
     experiments_path = reports_dir / EXPERIMENTS_FILENAME
     experiments = load_experiments(experiments_path)
 

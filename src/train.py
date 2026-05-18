@@ -321,6 +321,12 @@ def train_model(
 
     experiments_path = reports_dir / EXPERIMENTS_FILENAME
     append_experiment(experiments_path, metadata)
+    from src.experiment_registry import upsert_experiment
+
+    upsert_experiment(
+        metadata,
+        db_path=reports_dir / "regimelab.db",
+    )
 
     summary_path = reports_dir / f"{experiment_id}_training_summary.json"
     with summary_path.open("w", encoding="utf-8") as file:

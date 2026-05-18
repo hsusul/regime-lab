@@ -39,6 +39,8 @@ KEY_SIGNAL_COLUMNS = [
     "drawdown_60d",
     "volume_change_20d",
 ]
+DEFAULT_HISTORY_LIMIT = 100
+MAX_HISTORY_LIMIT = 1_000
 
 
 class PredictionError(Exception):
@@ -84,7 +86,14 @@ def list_experiment_records(reports_dir: Path | None = None) -> list[dict[str, A
 
 def latest_valid_experiment(reports_dir: Path | None = None) -> dict[str, Any]:
     """Resolve latest completed experiment with an existing artifact path."""
-    records = list_experiment_records(reports_dir)
+    selected_reports_dir = reports_dir or REPORTS_DIR
+    from src.experiment_registry import active_experiment
+
+    active = active_experiment(db_path=selected_reports_dir / "regimelab.db")
+    if active is not None:
+        return active
+
+    records = list_experiment_records(selected_reports_dir)
     candidates = [
         record
         for record in records
@@ -299,12 +308,17 @@ def history_for_ticker(
     if end_date:
         history = history[history["date"] <= pd.to_datetime(end_date)]
     history = history.sort_values("date")
-    if limit is not None:
-        history = history.tail(limit)
+    total_available = int(len(history))
+    effective_limit = DEFAULT_HISTORY_LIMIT if limit is None else min(limit, MAX_HISTORY_LIMIT)
+    history = history.tail(effective_limit)
     if history.empty:
         raise CachedDataNotFoundError(f"No history rows available for {normalized}.")
 
     warnings: list[str] = []
+    if limit is not None and limit > MAX_HISTORY_LIMIT:
+        warnings.append(
+            f"requested limit {limit} capped at maximum {MAX_HISTORY_LIMIT}."
+        )
     predicted = pd.Series([None] * len(history), index=history.index, dtype="object")
     try:
         artifact = latest_model_artifact(reports_dir)
@@ -347,6 +361,7 @@ def history_for_ticker(
         "ticker": normalized,
         "rows": rows,
         "count": len(rows),
+        "total_available": total_available,
         "warnings": warnings,
     }
 
@@ -359,7 +374,20 @@ def filter_experiments(
     ticker: str | None = None,
 ) -> list[dict[str, Any]]:
     """List experiment records sorted newest first with optional filters."""
-    records = list_experiment_records(reports_dir)
+    selected_reports_dir = reports_dir or REPORTS_DIR
+    from src.experiment_registry import list_experiments as list_registry_experiments
+    from src.experiment_registry import registry_exists
+
+    if registry_exists(selected_reports_dir / "regimelab.db"):
+        records = list_registry_experiments(
+            db_path=selected_reports_dir / "regimelab.db",
+            limit=limit,
+            model_type=model_type,
+            ticker=ticker,
+        )
+        return records
+
+    records = list_experiment_records(selected_reports_dir)
     if model_type:
         records = [record for record in records if record.get("model_type") == model_type]
     if ticker:

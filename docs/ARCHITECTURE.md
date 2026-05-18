@@ -6,6 +6,7 @@ RegimeLab is organized as a CLI-first ML pipeline with a cached-artifact FastAPI
 data/raw -> data/processed -> labeled features -> models/reports -> FastAPI
                                          \-> HMM reports
                                          \-> forward return reports
+                                         \-> walk-forward reports
 ```
 
 ## Pipeline Stages
@@ -29,6 +30,7 @@ data/raw -> data/processed -> labeled features -> models/reports -> FastAPI
    - Trains `logistic_regression` or `random_forest`.
    - Saves joblib artifacts under `models/`.
    - Appends metadata to `reports/experiments.json`.
+   - Mirrors metadata into the optional SQLite registry at `reports/regimelab.db`.
 
 5. `src.evaluate`
    - Reloads artifacts.
@@ -49,6 +51,17 @@ data/raw -> data/processed -> labeled features -> models/reports -> FastAPI
    - Writes JSON reports and optional CSV summaries under `reports/`.
    - Does not modify `FEATURE_COLUMNS`, training inputs, or supervised artifacts.
 
+9. `src.experiment_registry`
+   - Maintains an optional SQLite registry for experiment records.
+   - Supports `list`, `show`, and `activate` CLI commands.
+   - Provides an active-model pointer while preserving `experiments.json` fallback.
+
+10. `src.walk_forward`
+    - Runs optional expanding-window validation across chronological folds.
+    - Reuses supervised baseline model definitions and `FEATURE_COLUMNS`.
+    - Writes JSON reports and optional CSV fold summaries under `reports/`.
+    - Does not update model artifacts, experiment registry state, or API behavior.
+
 ## Artifact Contract
 
 Training artifacts are joblib dictionaries containing:
@@ -67,3 +80,12 @@ Training artifacts are joblib dictionaries containing:
 - environment metadata such as Python, scikit-learn, pandas, and NumPy versions
 
 Generated local data and reports are ignored by git. Source code, docs, tests, and `.gitkeep` placeholders are tracked.
+
+## Experiment Resolution
+
+The model-serving path resolves experiments in this order:
+
+1. If `reports/regimelab.db` exists and contains an active experiment with a valid `artifact_path`, use that experiment.
+2. Otherwise, read `reports/experiments.json` and select the most recent completed experiment with a valid `artifact_path`.
+
+This keeps the original file-based MVP behavior intact while allowing explicit active-model selection through SQLite.

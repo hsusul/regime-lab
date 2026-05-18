@@ -18,6 +18,7 @@ data/processed/*
 models/*
 reports/*.json
 reports/*.csv
+reports/*.db
 .DS_Store
 .idea
 .vscode

@@ -46,12 +46,26 @@ Latest available labeled row: `2026-05-14`.
 | `AAPL` | `stable_growth` | `stable_growth` |
 | `NVDA` | `sideways_defensive` | `sideways_defensive` |
 
+## Walk-Forward Validation
+
+Walk-forward validation was run with expanding chronological folds from `2018` through partial `2026`. Each fold trains only on earlier dates and tests on the next chronological period, so no fold trains on future rows.
+
+- Model: `random_forest`
+- Tickers: `SPY`, `QQQ`, `AAPL`, `NVDA`
+- Fold range: `2018` through partial `2026`
+- Accuracy range: about `0.977` to `0.999`
+- Macro F1 range: about `0.959` to `0.998`
+
+The `2026` fold has fewer rows because the cached dataset ends on `2026-05-14`, so it is a partial year. These walk-forward metrics test whether the model consistently reproduces heuristic regime labels across time. They do not measure trading profitability or investment usefulness.
+
 ## Optional Analysis Paths
 
 - HMM analysis: `python -m src.hmm --tickers SPY QQQ AAPL NVDA --n-states 4`
 - Forward return analysis: `python -m src.forward_returns --tickers SPY QQQ AAPL NVDA --horizons 5 20 60`
+- Walk-forward validation: `python -m src.walk_forward --tickers SPY QQQ AAPL NVDA --model-type random_forest --start-year 2018 --test-window-years 1`
 
 HMM analysis requires the optional `hmmlearn` dependency. Forward-return reports are retrospective summaries of what happened after observed regimes; they are not trading signals.
+Walk-forward validation evaluates whether agreement with heuristic labels is stable across multiple chronological folds.
 
 ## How to Interpret Results
 
@@ -60,10 +74,11 @@ HMM analysis requires the optional `hmmlearn` dependency. Forward-return reports
 - High model accuracy does not mean the system predicts profitable trades.
 - Forward returns use future data only for offline retrospective analysis, never for model inputs.
 - HMM states are latent clusters whose names are interpreted after training from state statistics.
+- Walk-forward validation uses expanding chronological folds and never trains a fold on future rows.
 - If an artifact compatibility warning appears, retrain the model in the current environment before relying on local predictions.
 
 ## Resume Bullets
 
 - Built a backend-first financial ML system in Python that ingests historical OHLCV data, engineers leakage-aware time-series features, labels market regimes, trains supervised classifiers, and serves cached predictions through FastAPI.
 - Implemented reproducible model artifacts, file-based experiment metadata, chronological train/test evaluation, diagnostics, Docker packaging, and pytest coverage across data, features, labeling, training, evaluation, and API behavior.
-- Added optional unsupervised HMM regime analysis and retrospective forward-return reporting to compare heuristic, predicted, and latent regimes without framing outputs as trading advice.
+- Added optional unsupervised HMM regime analysis, retrospective forward-return reporting, and walk-forward validation to compare heuristic, predicted, latent, and temporally validated regimes without framing outputs as trading advice.
