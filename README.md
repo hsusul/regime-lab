@@ -1,5 +1,7 @@
 # RegimeLab
 
+[![CI](https://github.com/hsusul/regime-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/hsusul/regime-lab/actions/workflows/ci.yml)
+
 RegimeLab is a backend-first financial machine learning project for classifying broad market regimes from historical time-series data. It focuses on reproducible pipelines, clean APIs, testing, and documentation rather than direct stock-price prediction.
 
 RegimeLab is educational and research software only. It is not financial advice, does not provide trading recommendations, does not place trades, and does not guarantee profitable predictions.
@@ -19,6 +21,8 @@ RegimeLab is educational and research software only. It is not financial advice,
 - Optional Hidden Markov Model exploratory regime reports.
 - Retrospective forward return and risk analysis reports.
 - Optional walk-forward validation reports for temporal model stability.
+- Lightweight model explanation reports for latest predictions.
+- Model comparison reports for baseline classifier selection.
 
 ## Architecture
 
@@ -38,6 +42,8 @@ Data ingestion -> feature engineering -> rule labeling -> training -> evaluation
 - Optional HMM analysis fits latent states from return and volatility sequences and writes separate artifacts/reports.
 - Forward return analysis measures retrospective outcomes after rule-based or predicted regimes.
 - Walk-forward validation evaluates supervised model stability across multiple chronological folds.
+- Explanation reports summarize latest predictions, key feature values, and global model importance when available.
+- Model comparison reports train/evaluate selected baselines and rank them by macro F1.
 
 ## Results from Sample Run
 
@@ -111,6 +117,8 @@ python -m pip install -e ".[hmm]"
 
 ## Local Usage Flow
 
+Project defaults live in [configs/default.yaml](configs/default.yaml). CLI arguments keep priority, so passing `--tickers`, `--start-date`, `--model-type`, or path flags overrides config values.
+
 1. Ingest historical OHLCV data:
 
 ```bash
@@ -133,6 +141,15 @@ python -m src.labeling --tickers SPY QQQ AAPL NVDA
 
 ```bash
 python -m src.train --model-type random_forest --tickers SPY QQQ AAPL NVDA
+```
+
+You can also supply config-backed defaults:
+
+```bash
+python -m src.data --config configs/default.yaml
+python -m src.features --config configs/default.yaml
+python -m src.labeling --config configs/default.yaml
+python -m src.train --config configs/default.yaml
 ```
 
 5. Evaluate the latest model:
@@ -179,7 +196,19 @@ python -m src.walk_forward --tickers SPY QQQ AAPL NVDA --model-type random_fores
 
 Use `--save-csv` to also write a fold summary table under `reports/`.
 
-11. Run the API:
+11. Optionally run a lightweight explanation report:
+
+```bash
+python -m src.explain --tickers SPY QQQ AAPL NVDA
+```
+
+12. Optionally compare baseline models:
+
+```bash
+python -m src.compare_models --tickers SPY QQQ AAPL NVDA --models logistic_regression random_forest --save-csv
+```
+
+13. Run the API:
 
 ```bash
 uvicorn app.main:app --reload
@@ -211,7 +240,19 @@ Optional walk-forward validation evaluates model stability across expanding chro
 python -m src.walk_forward --tickers SPY QQQ AAPL NVDA --model-type random_forest --start-year 2018 --test-window-years 1
 ```
 
-These paths write local reports under `reports/` and stay separate from the supervised API. Walk-forward metrics measure agreement with heuristic labels across time, not trading profitability.
+Optional explanation reports summarize latest predictions and global model importance:
+
+```bash
+python -m src.explain --tickers SPY QQQ AAPL NVDA
+```
+
+Optional model comparison trains/evaluates selected baselines and writes a comparison report:
+
+```bash
+python -m src.compare_models --tickers SPY QQQ AAPL NVDA --models logistic_regression random_forest --save-csv
+```
+
+These paths write local reports under `reports/` and stay separate from the supervised API. Walk-forward metrics, explanations, and model comparisons measure agreement with heuristic labels and model behavior, not trading profitability.
 
 ## API Examples
 
@@ -274,6 +315,7 @@ regime-lab/
       metrics.py
       experiments.py
   src/
+    config.py
     data.py
     features.py
     labeling.py
@@ -284,6 +326,8 @@ regime-lab/
     hmm.py
     forward_returns.py
     walk_forward.py
+    explain.py
+    compare_models.py
     experiments.py
   data/
     raw/
@@ -293,6 +337,8 @@ regime-lab/
   notebooks/
   tests/
   docs/
+  configs/
+    default.yaml
   Dockerfile
   pyproject.toml
   PRODUCT_REQUIREMENTS.md
@@ -325,6 +371,7 @@ These labels are transparent heuristics used as supervised training targets. The
 - HMM states are latent clusters interpreted after fitting; their names are analytical summaries, not known market truth.
 - Forward return reports are retrospective summaries and can be affected by regime label quality, market period selection, and survivorship-style assumptions.
 - Walk-forward validation tests temporal stability against heuristic labels, not profitability.
+- Explanation reports are descriptive model diagnostics and do not include SHAP.
 - Data comes from `yfinance`, which is useful for an educational project but not a production-grade market data source.
 - The API reads local cached files and artifacts; it does not run live downloads or training inside request handlers.
 - File-based experiment metadata is intentionally simple for the MVP.

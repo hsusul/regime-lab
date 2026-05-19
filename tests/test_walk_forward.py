@@ -15,6 +15,7 @@ from src.walk_forward import (
     build_parser,
     build_walk_forward_folds,
     build_walk_forward_report,
+    flatten_fold_for_csv,
     run_walk_forward_validation,
     validate_walk_forward_config,
 )
@@ -150,6 +151,27 @@ def test_logistic_regression_walk_forward_smoke() -> None:
     assert report["summary"]["mean_macro_f1"] is not None
 
 
+def test_flatten_fold_for_csv_creates_per_class_columns() -> None:
+    fold = {
+        "fold_index": 1,
+        "macro_f1": 0.9,
+        "per_class_f1": {
+            "stable_growth": 0.8,
+            "volatile_recovery": 0.7,
+            "sideways_defensive": 0.6,
+            "stress_selloff": 0.5,
+        },
+    }
+
+    flattened = flatten_fold_for_csv(fold)
+
+    assert "per_class_f1" not in flattened
+    assert flattened["f1_stable_growth"] == 0.8
+    assert flattened["f1_volatile_recovery"] == 0.7
+    assert flattened["f1_sideways_defensive"] == 0.6
+    assert flattened["f1_stress_selloff"] == 0.5
+
+
 def test_run_walk_forward_validation_saves_json_and_optional_csv(tmp_path) -> None:
     processed_dir = tmp_path / "processed"
     reports_dir = tmp_path / "reports"
@@ -172,7 +194,13 @@ def test_run_walk_forward_validation_saves_json_and_optional_csv(tmp_path) -> No
     assert result.csv_path.exists()
     saved = json.loads(result.report_path.read_text(encoding="utf-8"))
     assert saved["model_type"] == "random_forest"
-    assert "macro_f1" in result.csv_path.read_text(encoding="utf-8")
+    csv_text = result.csv_path.read_text(encoding="utf-8")
+    assert "macro_f1" in csv_text
+    assert "per_class_f1" not in csv_text
+    assert "f1_stable_growth" in csv_text
+    assert "f1_volatile_recovery" in csv_text
+    assert "f1_sideways_defensive" in csv_text
+    assert "f1_stress_selloff" in csv_text
 
 
 def test_walk_forward_cli_parser_accepts_expected_arguments() -> None:

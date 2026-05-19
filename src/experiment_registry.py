@@ -10,8 +10,9 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Generator, Sequence
 
 
 REPORTS_DIR = Path("reports")
@@ -34,12 +35,23 @@ class RegistryExperimentNotFoundError(ExperimentRegistryError):
     """Raised when an experiment does not exist in the registry."""
 
 
-def connect(db_path: Path = DEFAULT_REGISTRY_PATH) -> sqlite3.Connection:
-    """Open a SQLite connection with row dictionaries enabled."""
+@contextmanager
+def connect(db_path: Path = DEFAULT_REGISTRY_PATH) -> Generator[sqlite3.Connection, None, None]:
+    """Open a SQLite connection that auto-commits and always closes.
+
+    ``sqlite3.connect()`` used as a context manager only manages
+    transactions (commit / rollback) — it never calls ``close()``.
+    This wrapper ensures the underlying connection is released when the
+    block exits, preventing ``ResourceWarning: unclosed database`` leaks.
+    """
     db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
-    return connection
+    try:
+        with connection:          # transaction: commit on success, rollback on exception
+            yield connection
+    finally:
+        connection.close()
 
 
 def initialize_registry(db_path: Path = DEFAULT_REGISTRY_PATH) -> None:

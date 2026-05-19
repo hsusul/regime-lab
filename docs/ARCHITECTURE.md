@@ -15,6 +15,7 @@ data/raw -> data/processed -> labeled features -> models/reports -> FastAPI
    - Downloads daily OHLCV data through a pluggable provider.
    - Normalizes columns to `date, open, high, low, close, adj_close, volume, ticker`.
    - Caches raw CSVs under `data/raw/`.
+   - Can read CLI defaults from `configs/default.yaml`.
 
 2. `src.features`
    - Computes leakage-aware rolling features separately per ticker.
@@ -61,6 +62,16 @@ data/raw -> data/processed -> labeled features -> models/reports -> FastAPI
     - Reuses supervised baseline model definitions and `FEATURE_COLUMNS`.
     - Writes JSON reports and optional CSV fold summaries under `reports/`.
     - Does not update model artifacts, experiment registry state, or API behavior.
+
+11. `src.compare_models`
+    - Trains and evaluates selected baseline model types through existing pipeline functions.
+    - Writes model comparison JSON reports and optional CSV tables under `reports/`.
+    - Does not add new model definitions or change API behavior.
+
+12. `src.config`
+    - Loads readable YAML config files for CLI defaults.
+    - Preserves existing behavior when no config is provided.
+    - Keeps CLI arguments higher priority than config values.
 
 ## Artifact Contract
 

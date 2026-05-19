@@ -24,6 +24,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from src.config import cli_or_config, cli_or_config_path, load_config
 from src.data import validate_ticker
 from src.features import FEATURE_COLUMNS, FEATURE_VERSION, PROCESSED_DATA_DIR
 from src.labeling import LABELING_VERSION, REGIME_LABELS
@@ -403,29 +404,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Train a baseline regime classifier from labeled features."
     )
+    parser.add_argument("--config", type=Path, help="Optional YAML config file.")
     parser.add_argument(
         "--model-type",
-        required=True,
+        required=False,
         choices=SUPPORTED_MODEL_TYPES,
         help="Model type to train.",
     )
-    parser.add_argument("--tickers", nargs="+", required=True, help="Ticker symbols.")
+    parser.add_argument("--tickers", nargs="+", help="Ticker symbols.")
     parser.add_argument(
         "--processed-data-dir",
         type=Path,
-        default=PROCESSED_DATA_DIR,
+        default=None,
         help="Directory containing labeled processed feature CSV files.",
     )
     parser.add_argument(
         "--models-dir",
         type=Path,
-        default=MODELS_DIR,
+        default=None,
         help="Directory for saved model artifacts.",
     )
     parser.add_argument(
         "--reports-dir",
         type=Path,
-        default=REPORTS_DIR,
+        default=None,
         help="Directory for training reports and experiment metadata.",
     )
     return parser
@@ -435,13 +437,45 @@ def main(argv: Sequence[str] | None = None) -> int:
     """CLI entrypoint for supervised model training."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    config = load_config(args.config)
+    tickers = args.tickers or cli_or_config(
+        None,
+        config,
+        "project.supported_tickers",
+        None,
+    )
+    if not tickers:
+        parser.error("--tickers is required unless provided by --config")
+    model_type = cli_or_config(
+        args.model_type,
+        config,
+        "model.default_model_type",
+        None,
+    )
+    if not model_type:
+        parser.error("--model-type is required unless provided by --config")
 
     result = train_from_processed_files(
-        args.tickers,
-        args.model_type,
-        processed_data_dir=args.processed_data_dir,
-        models_dir=args.models_dir,
-        reports_dir=args.reports_dir,
+        tickers,
+        model_type,
+        processed_data_dir=cli_or_config_path(
+            args.processed_data_dir,
+            config,
+            "paths.processed_data_dir",
+            PROCESSED_DATA_DIR,
+        ),
+        models_dir=cli_or_config_path(
+            args.models_dir,
+            config,
+            "paths.models_dir",
+            MODELS_DIR,
+        ),
+        reports_dir=cli_or_config_path(
+            args.reports_dir,
+            config,
+            "paths.reports_dir",
+            REPORTS_DIR,
+        ),
     )
 
     print(f"experiment_id: {result.experiment_id}")

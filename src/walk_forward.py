@@ -188,6 +188,17 @@ def summarize_folds(folds: list[dict[str, Any]]) -> dict[str, float | int | None
     }
 
 
+def flatten_fold_for_csv(fold: dict[str, Any]) -> dict[str, Any]:
+    """Flatten nested per-class F1 values into stable CSV columns."""
+    flattened = {
+        key: value for key, value in fold.items() if key != "per_class_f1"
+    }
+    per_class = fold.get("per_class_f1", {})
+    for label in REGIME_LABELS:
+        flattened[f"f1_{label}"] = per_class.get(label)
+    return flattened
+
+
 def build_walk_forward_report(
     data: pd.DataFrame,
     *,
@@ -261,7 +272,9 @@ def save_walk_forward_outputs(
     csv_path = None
     if save_csv:
         csv_path = reports_dir / f"{WALK_FORWARD_REPORT_PREFIX}_{timestamp}_summary.csv"
-        pd.DataFrame(report["folds"]).to_csv(csv_path, index=False)
+        pd.DataFrame(
+            [flatten_fold_for_csv(fold) for fold in report["folds"]]
+        ).to_csv(csv_path, index=False)
 
     return WalkForwardResult(report_path=report_path, csv_path=csv_path, report=report)
 

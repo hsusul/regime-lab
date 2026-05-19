@@ -14,6 +14,7 @@ from typing import Sequence
 
 import pandas as pd
 
+from src.config import cli_or_config, cli_or_config_path, load_config
 from src.data import NORMALIZED_COLUMNS, RAW_DATA_DIR, cache_path_for_ticker, validate_ticker
 
 
@@ -203,19 +204,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Build leakage-aware features from cached raw OHLCV data."
     )
-    parser.add_argument("--tickers", nargs="+", required=True, help="Ticker symbols.")
+    parser.add_argument("--config", type=Path, help="Optional YAML config file.")
+    parser.add_argument("--tickers", nargs="+", help="Ticker symbols.")
     parser.add_argument("--start-date", help="Optional raw cache start date.")
     parser.add_argument("--end-date", help="Optional raw cache end date.")
     parser.add_argument(
         "--raw-data-dir",
         type=Path,
-        default=RAW_DATA_DIR,
+        default=None,
         help="Directory containing cached raw CSV files.",
     )
     parser.add_argument(
         "--processed-data-dir",
         type=Path,
-        default=PROCESSED_DATA_DIR,
+        default=None,
         help="Directory for processed feature CSV files.",
     )
     parser.add_argument(
@@ -230,13 +232,32 @@ def main(argv: Sequence[str] | None = None) -> int:
     """CLI entrypoint for feature engineering."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    config = load_config(args.config)
+    tickers = args.tickers or cli_or_config(
+        None,
+        config,
+        "project.supported_tickers",
+        None,
+    )
+    if not tickers:
+        parser.error("--tickers is required unless provided by --config")
 
     results = build_features_for_tickers(
-        args.tickers,
-        raw_data_dir=args.raw_data_dir,
-        processed_data_dir=args.processed_data_dir,
-        start_date=args.start_date,
-        end_date=args.end_date,
+        tickers,
+        raw_data_dir=cli_or_config_path(
+            args.raw_data_dir,
+            config,
+            "paths.raw_data_dir",
+            RAW_DATA_DIR,
+        ),
+        processed_data_dir=cli_or_config_path(
+            args.processed_data_dir,
+            config,
+            "paths.processed_data_dir",
+            PROCESSED_DATA_DIR,
+        ),
+        start_date=cli_or_config(args.start_date, config, "data.start_date", None),
+        end_date=cli_or_config(args.end_date, config, "data.end_date", None),
         dropna=not args.keep_na,
     )
 

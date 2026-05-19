@@ -63,9 +63,13 @@ The `2026` fold has fewer rows because the cached dataset ends on `2026-05-14`, 
 - HMM analysis: `python -m src.hmm --tickers SPY QQQ AAPL NVDA --n-states 4`
 - Forward return analysis: `python -m src.forward_returns --tickers SPY QQQ AAPL NVDA --horizons 5 20 60`
 - Walk-forward validation: `python -m src.walk_forward --tickers SPY QQQ AAPL NVDA --model-type random_forest --start-year 2018 --test-window-years 1`
+- Explanation report: `python -m src.explain --tickers SPY QQQ AAPL NVDA`
+- Model comparison: `python -m src.compare_models --tickers SPY QQQ AAPL NVDA --models logistic_regression random_forest --save-csv`
 
 HMM analysis requires the optional `hmmlearn` dependency. Forward-return reports are retrospective summaries of what happened after observed regimes; they are not trading signals.
 Walk-forward validation evaluates whether agreement with heuristic labels is stable across multiple chronological folds.
+Explanation reports summarize latest predictions, key feature values, probabilities when available, and global model importance for supported models.
+Model comparison reports train and evaluate selected baselines with the existing pipeline, then compare accuracy and macro F1.
 
 ## How to Interpret Results
 
@@ -75,10 +79,12 @@ Walk-forward validation evaluates whether agreement with heuristic labels is sta
 - Forward returns use future data only for offline retrospective analysis, never for model inputs.
 - HMM states are latent clusters whose names are interpreted after training from state statistics.
 - Walk-forward validation uses expanding chronological folds and never trains a fold on future rows.
+- Explanation reports are descriptive diagnostics for model behavior; SHAP is intentionally not included.
+- Model comparison ranks baseline classifiers by heuristic-label metrics, not trading outcomes.
 - If an artifact compatibility warning appears, retrain the model in the current environment before relying on local predictions.
 
 ## Resume Bullets
 
 - Built a backend-first financial ML system in Python that ingests historical OHLCV data, engineers leakage-aware time-series features, labels market regimes, trains supervised classifiers, and serves cached predictions through FastAPI.
 - Implemented reproducible model artifacts, file-based experiment metadata, chronological train/test evaluation, diagnostics, Docker packaging, and pytest coverage across data, features, labeling, training, evaluation, and API behavior.
-- Added optional unsupervised HMM regime analysis, retrospective forward-return reporting, and walk-forward validation to compare heuristic, predicted, latent, and temporally validated regimes without framing outputs as trading advice.
+- Added optional unsupervised HMM regime analysis, retrospective forward-return reporting, walk-forward validation, model comparison, and lightweight explanation reports to compare heuristic, predicted, latent, and temporally validated regimes without framing outputs as trading advice.

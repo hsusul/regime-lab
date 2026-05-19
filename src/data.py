@@ -13,6 +13,8 @@ from typing import Protocol, Sequence
 
 import pandas as pd
 
+from src.config import cli_or_config, cli_or_config_path, load_config
+
 
 RAW_DATA_DIR = Path("data/raw")
 NORMALIZED_COLUMNS = [
@@ -264,13 +266,14 @@ def load_tickers(
 def build_parser() -> argparse.ArgumentParser:
     """Build the data ingestion CLI argument parser."""
     parser = argparse.ArgumentParser(description="Download and cache daily OHLCV data.")
-    parser.add_argument("--tickers", nargs="+", required=True, help="Ticker symbols.")
+    parser.add_argument("--config", type=Path, help="Optional YAML config file.")
+    parser.add_argument("--tickers", nargs="+", help="Ticker symbols.")
     parser.add_argument("--start-date", help="Start date in YYYY-MM-DD format.")
     parser.add_argument("--end-date", help="End date in YYYY-MM-DD format.")
     parser.add_argument(
         "--raw-data-dir",
         type=Path,
-        default=RAW_DATA_DIR,
+        default=None,
         help="Directory for cached raw CSV files.",
     )
     parser.add_argument(
@@ -285,12 +288,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     """CLI entrypoint for data ingestion."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    config = load_config(args.config)
+    tickers = args.tickers or cli_or_config(
+        None,
+        config,
+        "project.supported_tickers",
+        None,
+    )
+    if not tickers:
+        parser.error("--tickers is required unless provided by --config")
 
     results = load_tickers(
-        args.tickers,
-        args.start_date,
-        args.end_date,
-        raw_data_dir=args.raw_data_dir,
+        tickers,
+        cli_or_config(args.start_date, config, "data.start_date", None),
+        cli_or_config(args.end_date, config, "data.end_date", None),
+        raw_data_dir=cli_or_config_path(
+            args.raw_data_dir,
+            config,
+            "paths.raw_data_dir",
+            RAW_DATA_DIR,
+        ),
         force_refresh=args.force_refresh,
     )
 

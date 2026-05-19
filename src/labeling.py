@@ -13,6 +13,7 @@ from typing import Sequence
 
 import pandas as pd
 
+from src.config import cli_or_config, cli_or_config_path, get_config_value, load_config
 from src.data import validate_ticker
 from src.features import PROCESSED_DATA_DIR
 
@@ -71,6 +72,22 @@ class LabelBuildResult:
     output_path: Path
     rows: int
     label_counts: dict[str, int]
+
+
+def thresholds_from_config(config: dict[str, object]) -> LabelingThresholds | None:
+    """Build labeling thresholds from config when provided."""
+    values = get_config_value(config, "labeling.thresholds")
+    if values is None:
+        return None
+    if not isinstance(values, dict):
+        raise LabelingError("labeling.thresholds must be a mapping.")
+    allowed = set(LabelingThresholds.__dataclass_fields__)
+    unknown = sorted(set(values) - allowed)
+    if unknown:
+        raise LabelingError(
+            f"Unknown labeling threshold keys: {', '.join(unknown)}"
+        )
+    return LabelingThresholds(**values)
 
 
 def validate_required_features(data: pd.DataFrame) -> None:
@@ -241,11 +258,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Add deterministic rule-based regime labels to feature CSVs."
     )
-    parser.add_argument("--tickers", nargs="+", required=True, help="Ticker symbols.")
+    parser.add_argument("--config", type=Path, help="Optional YAML config file.")
+    parser.add_argument("--tickers", nargs="+", help="Ticker symbols.")
     parser.add_argument(
         "--processed-data-dir",
         type=Path,
-        default=PROCESSED_DATA_DIR,
+        default=None,
         help="Directory containing processed feature CSV files.",
     )
     parser.add_argument(
@@ -260,10 +278,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     """CLI entrypoint for rule-based labeling."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    config = load_config(args.config)
+    tickers = args.tickers or cli_or_config(
+        None,
+        config,
+        "project.supported_tickers",
+        None,
+    )
+    if not tickers:
+        parser.error("--tickers is required unless provided by --config")
 
     results = label_features_for_tickers(
-        args.tickers,
-        processed_data_dir=args.processed_data_dir,
+        tickers,
+        processed_data_dir=cli_or_config_path(
+            args.processed_data_dir,
+            config,
+            "paths.processed_data_dir",
+            PROCESSED_DATA_DIR,
+        ),
+        thresholds=thresholds_from_config(config),
         drop_unlabeled=not args.keep_unlabeled,
     )
 

@@ -17,6 +17,7 @@ dependencies = [
   "scikit-learn>=1.5.0",
   "yfinance>=0.2.40",
   "joblib>=1.4.0",
+  "PyYAML>=6.0.0",
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,44 @@
+project:
+  supported_tickers:
+    - SPY
+    - QQQ
+    - AAPL
+    - NVDA
+  optional_tickers:
+    - BTC-USD
+
+data:
+  start_date: "2015-01-01"
+  end_date: "2026-05-15"
+
+features:
+  feature_version: "v1"
+
+labeling:
+  labeling_version: "v1"
+  thresholds:
+    stress_return_20d: -0.04
+    stress_drawdown_60d: -0.08
+    elevated_volatility_20d: 0.025
+    recovery_return_5d: 0.015
+    recovery_return_20d: 0.02
+    recovery_drawdown_60d: -0.04
+    stable_return_20d: 0.02
+    near_ma_distance: -0.01
+    stable_max_volatility_20d: 0.02
+    stable_max_drawdown_60d: -0.03
+
+model:
+  default_model_type: "random_forest"
+  supported_model_types:
+    - logistic_regression
+    - random_forest
+  train_fraction: 0.8
+  random_seed: 42
+
+paths:
+  raw_data_dir: "data/raw"
+  processed_data_dir: "data/processed"
+  models_dir: "models"
+  reports_dir: "reports"
+  registry_db: "reports/regimelab.db"
